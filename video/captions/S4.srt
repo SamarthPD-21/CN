@@ -1,0 +1,1452 @@
+1
+00:00:00,000 --> 00:00:00,730
+Session four.
+
+2
+00:00:00,730 --> 00:00:02,809
+nginx, and the code that explains it.
+
+3
+00:00:02,809 --> 00:00:07,530
+Every design in this session was someone's answer to a constraint that may no longer
+
+4
+00:00:07,530 --> 00:00:07,867
+exist.
+
+5
+00:00:07,867 --> 00:00:10,901
+Knowing which constraint tells you a law from a habit.
+
+6
+00:00:11,800 --> 00:00:13,042
+First, a correction.
+
+7
+00:00:13,042 --> 00:00:18,200
+The myth says: Berners-Lee wrote the first server, called Mosaic, and Mosaic became
+
+8
+00:00:18,200 --> 00:00:18,635
+Apache.
+
+9
+00:00:18,635 --> 00:00:19,505
+That is wrong.
+
+10
+00:00:19,505 --> 00:00:21,680
+There were three separate programs.
+
+11
+00:00:22,000 --> 00:00:26,809
+CERN httpd, by Tim Berners-Lee on a NeXT machine in nineteen ninety.
+
+12
+00:00:26,809 --> 00:00:28,931
+That was the first web server.
+
+13
+00:00:29,266 --> 00:00:31,797
+NCSA Mosaic, in nineteen ninety-three.
+
+14
+00:00:31,797 --> 00:00:33,862
+It was a browser, not a server.
+
+15
+00:00:33,862 --> 00:00:37,126
+It had inline images and took the web mainstream.
+
+16
+00:00:37,466 --> 00:00:42,199
+NCSA HTTPd, also nineteen ninety-three, by Rob McCool.
+
+17
+00:00:42,199 --> 00:00:45,616
+That was a server, and it invented CGI.
+
+18
+00:00:45,933 --> 00:00:50,837
+In nineteen ninety-four McCool left, development stalled, and webmasters traded
+
+19
+00:00:50,837 --> 00:00:51,831
+patches by mail.
+
+20
+00:00:52,133 --> 00:00:56,045
+In nineteen ninety-five that patch set continued as a project.
+
+21
+00:00:56,045 --> 00:00:57,055
+A patchy server.
+
+22
+00:00:57,055 --> 00:00:57,497
+Apache.
+
+23
+00:00:57,800 --> 00:01:03,685
+In nineteen ninety-six, Apache passed NCSA HTTPd, and stayed number one for twenty
+
+24
+00:01:03,685 --> 00:01:04,115
+years.
+
+25
+00:01:05,000 --> 00:01:08,053
+Apache then spent a decade trying to outrun fork.
+
+26
+00:01:08,400 --> 00:01:10,309
+Apache one point three, prefork.
+
+27
+00:01:10,309 --> 00:01:13,950
+A pool of processes forked at startup instead of per request.
+
+28
+00:01:13,950 --> 00:01:16,277
+The setup cost leaves the request path.
+
+29
+00:01:16,277 --> 00:01:19,023
+But one process still parks on one connection.
+
+30
+00:01:19,333 --> 00:01:21,516
+Apache two point zero, the worker MPM.
+
+31
+00:01:21,516 --> 00:01:25,939
+Processes running many threads, with eight megabytes shared and a stack each.
+
+32
+00:01:25,939 --> 00:01:30,420
+Linux pthreads in nineteen ninety-nine to two thousand two were new and buggy.
+
+33
+00:01:30,733 --> 00:01:32,936
+Apache two point four, the event MPM.
+
+34
+00:01:32,936 --> 00:01:37,817
+A listener thread parks idle keep-alives on epoll, and hands a worker a connection
+
+35
+00:01:37,817 --> 00:01:39,127
+only when it has work.
+
+36
+00:01:39,127 --> 00:01:41,925
+It is the default on Unix since two point four.
+
+37
+00:01:42,266 --> 00:01:46,869
+Three architectures, one question: how do I make the per-connection worker cheaper?
+
+38
+00:01:46,869 --> 00:01:48,977
+None of them was a different question.
+
+39
+00:01:49,866 --> 00:01:53,756
+Java's answer was different in style: stop creating things.
+
+40
+00:01:54,066 --> 00:01:59,694
+CGI, from nineteen ninety-three, did all this for every request: fork, exec, load
+
+41
+00:01:59,694 --> 00:02:02,820
+the interpreter, parse the script, run, exit.
+
+42
+00:02:03,133 --> 00:02:08,255
+The servlet, from nineteen ninety-seven, loads the class at startup and instantiates
+
+43
+00:02:08,255 --> 00:02:08,743
+it once.
+
+44
+00:02:08,743 --> 00:02:12,890
+Then each request is just a method call: service, request, response.
+
+45
+00:02:12,890 --> 00:02:14,841
+The object outlives the request.
+
+46
+00:02:14,841 --> 00:02:15,939
+That is the trick.
+
+47
+00:02:16,266 --> 00:02:22,412
+J two EE, in nineteen ninety-nine, made this a multi-layer app server: a web tier,
+
+48
+00:02:22,412 --> 00:02:24,660
+an EJB tier, and the database.
+
+49
+00:02:24,999 --> 00:02:28,818
+Connection pools do the same thing for the database handshake.
+
+50
+00:02:28,818 --> 00:02:31,466
+It is the same move as prefork and FastCGI.
+
+51
+00:02:32,399 --> 00:02:33,993
+Now it is two thousand two.
+
+52
+00:02:33,993 --> 00:02:36,649
+Here are the numbers everyone was staring at.
+
+53
+00:02:36,933 --> 00:02:39,224
+Ten thousand concurrent connections.
+
+54
+00:02:39,224 --> 00:02:42,343
+That is C ten K, Dan Kegel, nineteen ninety-nine.
+
+55
+00:02:42,666 --> 00:02:44,800
+Eight megabytes of stack per thread.
+
+56
+00:02:44,800 --> 00:02:48,239
+Ten thousand threads is eighty gigabytes of address space.
+
+57
+00:02:48,533 --> 00:02:52,342
+And one thousand twenty-four, FD_SETSIZE, hard-coded.
+
+58
+00:02:52,342 --> 00:02:54,210
+A ulimit does not move it.
+
+59
+00:02:54,533 --> 00:02:56,452
+Everyone is optimising the worker.
+
+60
+00:02:56,452 --> 00:02:58,202
+Somebody is about to delete it.
+
+61
+00:02:59,133 --> 00:03:03,649
+Igor Sysoev, at Rambler, the big Russian portal, in two thousand two.
+
+62
+00:03:03,933 --> 00:03:08,423
+Rambler's Apache servers were falling over under connection volume, not request
+
+63
+00:03:08,423 --> 00:03:08,821
+volume.
+
+64
+00:03:09,133 --> 00:03:12,497
+He started nginx in two thousand two to solve C ten K.
+
+65
+00:03:12,497 --> 00:03:17,294
+The first public release was on the fourth of October, two thousand four, the
+
+66
+00:03:17,294 --> 00:03:18,726
+anniversary of Sputnik.
+
+67
+00:03:18,726 --> 00:03:22,589
+Version one point zero came only in April two thousand eleven.
+
+68
+00:03:22,933 --> 00:03:27,835
+The goal: serve ten thousand mostly idle connections from one process, and let
+
+69
+00:03:27,835 --> 00:03:30,350
+something else generate dynamic content.
+
+70
+00:03:30,350 --> 00:03:33,869
+That is why nginx is a reverse proxy, not an app server.
+
+71
+00:03:34,199 --> 00:03:37,058
+Apache asked: how do I make the worker cheaper?
+
+72
+00:03:37,058 --> 00:03:40,525
+nginx asked: why is there a worker per connection at all?
+
+73
+00:03:40,525 --> 00:03:45,635
+A connection needs a few hundred bytes of state, and a place in a list, until it has
+
+74
+00:03:45,635 --> 00:03:46,669
+something to say.
+
+75
+00:03:47,599 --> 00:03:48,666
+The process model.
+
+76
+00:03:48,666 --> 00:03:52,696
+One process per core, plus a master that never touches a connection.
+
+77
+00:03:52,999 --> 00:03:58,095
+The master binds port eighty, reads the config, forks, and handles signals.
+
+78
+00:03:58,095 --> 00:03:58,979
+Nothing else.
+
+79
+00:03:59,266 --> 00:04:02,529
+Then there is one worker per core, each with its own event loop.
+
+80
+00:04:02,866 --> 00:04:07,469
+Plus a cache manager, which evicts the least recently used entries, and a cache
+
+81
+00:04:07,469 --> 00:04:09,217
+loader, which warms the index.
+
+82
+00:04:09,533 --> 00:04:11,313
+You can check this with ps.
+
+83
+00:04:11,313 --> 00:04:16,718
+The master has parent process one, and the number of workers does not change under
+
+84
+00:04:16,718 --> 00:04:19,553
+load, unlike a fork server, where it grows.
+
+85
+00:04:19,553 --> 00:04:24,101
+The code is ngx_master_process_cycle, ngx_start_worker_processes, and
+
+86
+00:04:24,101 --> 00:04:25,288
+ngx_spawn_process.
+
+87
+00:04:26,199 --> 00:04:28,191
+All of nginx, in six lines.
+
+88
+00:04:28,191 --> 00:04:30,994
+This is ngx_process_events_and_timers.
+
+89
+00:04:31,333 --> 00:04:32,812
+Find the nearest timer.
+
+90
+00:04:32,812 --> 00:04:33,776
+Process events.
+
+91
+00:04:33,776 --> 00:04:35,641
+Process posted accept events.
+
+92
+00:04:35,641 --> 00:04:37,249
+Release the accept mutex.
+
+93
+00:04:37,249 --> 00:04:38,149
+Expire timers.
+
+94
+00:04:38,149 --> 00:04:40,464
+Process the remaining posted events.
+
+95
+00:04:40,464 --> 00:04:42,072
+That is the whole server.
+
+96
+00:04:42,399 --> 00:04:45,402
+Notice that the timer is an argument to the sleep.
+
+97
+00:04:45,402 --> 00:04:47,444
+So nginx never polls for timeouts.
+
+98
+00:04:47,444 --> 00:04:50,387
+It just sleeps exactly until the next one is due.
+
+99
+00:04:50,733 --> 00:04:53,101
+And handlers do not run inside the poll.
+
+100
+00:04:53,101 --> 00:04:55,470
+They are posted, and drained afterwards.
+
+101
+00:04:56,399 --> 00:04:58,927
+How do the workers share new connections?
+
+102
+00:04:58,927 --> 00:04:59,790
+With one line.
+
+103
+00:05:00,133 --> 00:05:05,602
+ngx accept disabled equals the total connection slots divided by eight, minus the
+
+104
+00:05:05,602 --> 00:05:06,344
+free slots.
+
+105
+00:05:06,666 --> 00:05:11,871
+In plain words: once I am using more than seven eighths of my connection slots, stop
+
+106
+00:05:11,871 --> 00:05:15,650
+competing for new connections, and let my siblings take them.
+
+107
+00:05:15,650 --> 00:05:17,942
+No coordinator and no shared counter.
+
+108
+00:05:17,942 --> 00:05:19,553
+Each worker decides alone.
+
+109
+00:05:19,866 --> 00:05:24,545
+The accept mutex has been off by default since version one point eleven point three.
+
+110
+00:05:24,866 --> 00:05:29,870
+The thundering herd, where all workers wake up for a single connection, was real in
+
+111
+00:05:29,870 --> 00:05:30,955
+two thousand four.
+
+112
+00:05:30,955 --> 00:05:35,777
+Now EPOLLEXCLUSIVE, in Linux four point five and later, and SO_REUSEPORT let the
+
+113
+00:05:35,777 --> 00:05:37,405
+kernel fan connections out.
+
+114
+00:05:38,333 --> 00:05:43,360
+select versus epoll, stated as: O of watched, versus O of active.
+
+115
+00:05:44,399 --> 00:05:46,483
+Where does the watch list live?
+
+116
+00:05:46,483 --> 00:05:49,977
+With select, in your process, rebuilt on every call.
+
+117
+00:05:49,977 --> 00:05:53,270
+With epoll, in the kernel, edited with epoll_ctl.
+
+118
+00:05:53,599 --> 00:05:58,948
+The cost per iteration: select does an O of n build, an O of n kernel walk, and an O
+
+119
+00:05:58,948 --> 00:05:59,584
+of n scan.
+
+120
+00:05:59,584 --> 00:06:01,494
+epoll costs O of ready events.
+
+121
+00:06:01,799 --> 00:06:06,816
+With ten thousand idle and ten active, select does thirty thousand units of work to
+
+122
+00:06:06,816 --> 00:06:07,360
+find ten.
+
+123
+00:06:07,360 --> 00:06:08,266
+epoll does ten.
+
+124
+00:06:08,599 --> 00:06:14,105
+The ceiling: FD_SETSIZE of one thousand twenty-four, fixed at compile time, versus
+
+125
+00:06:14,105 --> 00:06:14,776
+ulimit -n.
+
+126
+00:06:15,066 --> 00:06:16,632
+And what does ulimit do?
+
+127
+00:06:16,632 --> 00:06:20,353
+For select, nothing, because the limit is a bitmap width.
+
+128
+00:06:20,353 --> 00:06:21,788
+For epoll, everything.
+
+129
+00:06:22,133 --> 00:06:25,527
+select is portable everywhere since nineteen eighty-three.
+
+130
+00:06:25,527 --> 00:06:27,868
+epoll is Linux only, with kqueue on BSD.
+
+131
+00:06:28,199 --> 00:06:32,124
+Everything here is downstream of one decision: who owns the watch list.
+
+132
+00:06:33,066 --> 00:06:35,910
+Every event loop author writes this bug once.
+
+133
+00:06:35,910 --> 00:06:36,921
+The stale event.
+
+134
+00:06:37,266 --> 00:06:39,704
+epoll_wait returns a batch of events.
+
+135
+00:06:39,999 --> 00:06:43,784
+Handling event one may close the connection that event seven points at.
+
+136
+00:06:44,133 --> 00:06:48,906
+A new client then takes that recycled file descriptor, and event seven is delivered
+
+137
+00:06:48,906 --> 00:06:50,286
+to the wrong connection.
+
+138
+00:06:50,599 --> 00:06:52,008
+nginx's fix is clever.
+
+139
+00:06:52,008 --> 00:06:57,259
+Structures are aligned so the low bit of a pointer is always zero, and that bit is
+
+140
+00:06:57,259 --> 00:07:00,012
+used as an instance flag, flipped on reuse.
+
+141
+00:07:00,012 --> 00:07:01,357
+One branch checks it.
+
+142
+00:07:01,357 --> 00:07:03,150
+A free bit, no extra memory.
+
+143
+00:07:03,466 --> 00:07:08,228
+The companion repository uses an explicit generation counter instead, which is
+
+144
+00:07:08,228 --> 00:07:09,143
+easier to read.
+
+145
+00:07:10,066 --> 00:07:10,752
+sendfile.
+
+146
+00:07:10,752 --> 00:07:12,504
+Four copies become two.
+
+147
+00:07:16,466 --> 00:07:21,256
+With read and write, data goes from disk to the page cache, to your buffer, to the
+
+148
+00:07:21,256 --> 00:07:23,300
+socket buffer, to the network card.
+
+149
+00:07:23,300 --> 00:07:25,928
+Four copies, and two mode switches per chunk.
+
+150
+00:07:29,399 --> 00:07:34,584
+With sendfile, data goes from disk to the page cache, to the socket buffer, to the
+
+151
+00:07:34,584 --> 00:07:35,406
+network card.
+
+152
+00:07:35,406 --> 00:07:38,947
+Two copies, both by DMA, and no mode switches per chunk.
+
+153
+00:07:38,947 --> 00:07:41,160
+The data never enters your process.
+
+154
+00:07:41,466 --> 00:07:46,719
+The limit: if you must touch the bytes, for gzip, TLS or templating, they have to
+
+155
+00:07:46,719 --> 00:07:47,952
+come to user space.
+
+156
+00:07:47,952 --> 00:07:50,805
+So gzip on and sendfile on fight each other.
+
+157
+00:07:50,805 --> 00:07:52,751
+That is why kernel TLS exists.
+
+158
+00:07:53,066 --> 00:07:57,554
+An honest benchmark, sixty-four megabytes over loopback: read takes thirty-seven
+
+159
+00:07:57,554 --> 00:08:00,640
+milliseconds and two thousand forty-eight system calls.
+
+160
+00:08:00,640 --> 00:08:03,220
+mmap takes twenty-three milliseconds and four.
+
+161
+00:08:03,220 --> 00:08:06,642
+sendfile takes thirty-three milliseconds and one system call.
+
+162
+00:08:06,642 --> 00:08:10,962
+On loopback there is no network card or DMA, so wall clock is about the same.
+
+163
+00:08:10,962 --> 00:08:15,394
+The real win is two thousand forty-eight system calls down to one, and headroom
+
+164
+00:08:15,394 --> 00:08:16,403
+under concurrency.
+
+165
+00:08:16,403 --> 00:08:20,442
+A benchmark that does not model the bottleneck measures the wrong thing.
+
+166
+00:08:21,333 --> 00:08:23,450
+Why is it called a reverse proxy?
+
+167
+00:08:23,450 --> 00:08:24,990
+Because proxy was taken.
+
+168
+00:08:25,333 --> 00:08:29,933
+A forward proxy, like Squid from nineteen ninety-six, sits next to the clients.
+
+169
+00:08:29,933 --> 00:08:32,961
+It caches for campus users and protects your uplink.
+
+170
+00:08:33,266 --> 00:08:36,783
+A reverse proxy, like nginx, sits next to the servers.
+
+171
+00:08:36,783 --> 00:08:42,254
+It caches, routes by path or host, distributes across upstreams, terminates TLS, and
+
+172
+00:08:42,254 --> 00:08:44,338
+holds ten thousand slow clients.
+
+173
+00:08:44,338 --> 00:08:48,115
+The client never configures it, and usually cannot see it.
+
+174
+00:08:48,399 --> 00:08:51,817
+The killer feature nobody lists: it absorbs slow clients.
+
+175
+00:08:51,817 --> 00:08:54,634
+Your app never has to talk to a phone on two G.
+
+176
+00:08:55,533 --> 00:08:57,595
+Now the features you configure.
+
+177
+00:08:57,595 --> 00:08:58,726
+First, the cache.
+
+178
+00:08:59,066 --> 00:09:01,307
+One directive defines the cache.
+
+179
+00:09:02,333 --> 00:09:07,279
+keys zone: ten megabytes of shared memory holding the red-black tree and the LRU
+
+180
+00:09:07,279 --> 00:09:07,649
+queue.
+
+181
+00:09:07,649 --> 00:09:09,628
+That is the index, not the data.
+
+182
+00:09:09,628 --> 00:09:12,039
+About eight thousand keys per megabyte.
+
+183
+00:09:12,333 --> 00:09:17,520
+levels one colon two: two directory levels on disk, so no directory ever holds a
+
+184
+00:09:17,520 --> 00:09:18,428
+million files.
+
+185
+00:09:18,733 --> 00:09:20,451
+max size: the disk ceiling.
+
+186
+00:09:20,451 --> 00:09:23,632
+The cache manager evicts from the tail of the LRU.
+
+187
+00:09:23,933 --> 00:09:29,128
+inactive: an item is evicted if it is not read for sixty seconds, regardless of its
+
+188
+00:09:29,128 --> 00:09:29,378
+TTL.
+
+189
+00:09:30,266 --> 00:09:31,365
+A class question.
+
+190
+00:09:31,365 --> 00:09:35,243
+proxy_cache_valid is ten seconds, inactive is sixty seconds.
+
+191
+00:09:35,243 --> 00:09:36,083
+What happens?
+
+192
+00:09:37,400 --> 00:09:39,627
+The content is fresh for ten seconds.
+
+193
+00:09:39,627 --> 00:09:42,336
+After that it is stale, so nginx revalidates.
+
+194
+00:09:42,336 --> 00:09:46,490
+But it is kept on disk for up to sixty seconds since the last access.
+
+195
+00:09:46,800 --> 00:09:51,975
+And if nobody reads it for sixty seconds, it is deleted, even if it would still be
+
+196
+00:09:51,975 --> 00:09:52,354
+valid.
+
+197
+00:09:52,354 --> 00:09:53,553
+Valid is freshness.
+
+198
+00:09:53,553 --> 00:09:56,204
+Inactive is how long an unread item stays.
+
+199
+00:09:57,133 --> 00:09:59,234
+Two lines that save you at three in the morning.
+
+200
+00:09:59,533 --> 00:09:59,794
+One.
+
+201
+00:09:59,794 --> 00:10:01,103
+proxy_cache_lock on.
+
+202
+00:10:01,103 --> 00:10:02,542
+This is anti-stampede.
+
+203
+00:10:02,542 --> 00:10:07,840
+When a popular object expires, only one request goes to the origin and the others
+
+204
+00:10:07,840 --> 00:10:08,167
+wait.
+
+205
+00:10:08,167 --> 00:10:09,541
+It is off by default.
+
+206
+00:10:09,866 --> 00:10:10,113
+Two.
+
+207
+00:10:10,113 --> 00:10:11,472
+proxy_cache_use_stale.
+
+208
+00:10:11,472 --> 00:10:16,599
+Serve stale content rather than fail, when the origin errors, times out, or returns
+
+209
+00:10:16,599 --> 00:10:20,119
+five hundred, five oh two, five oh three or five oh four.
+
+210
+00:10:20,119 --> 00:10:25,123
+The updating option means one request refreshes the item while everyone else gets
+
+211
+00:10:25,123 --> 00:10:26,667
+the stale copy instantly.
+
+212
+00:10:26,667 --> 00:10:28,581
+That is stale-while-revalidate.
+
+213
+00:10:28,866 --> 00:10:33,422
+And always add an X-Cache-Status header with the upstream cache status, so you can
+
+214
+00:10:33,422 --> 00:10:34,311
+see miss or hit.
+
+215
+00:10:35,200 --> 00:10:36,547
+location precedence.
+
+216
+00:10:36,547 --> 00:10:37,963
+It is not file order.
+
+217
+00:10:39,000 --> 00:10:40,684
+One: equals, exact match.
+
+218
+00:10:40,684 --> 00:10:43,446
+It wins immediately and the search stops.
+
+219
+00:10:43,733 --> 00:10:45,952
+Two: caret tilde, a prefix match.
+
+220
+00:10:45,952 --> 00:10:50,054
+It takes the longest prefix, and suppresses the regex search.
+
+221
+00:10:50,054 --> 00:10:53,685
+So/images/a dot php goes to number two, not the regex.
+
+222
+00:10:53,685 --> 00:10:55,703
+Half the room gets this wrong.
+
+223
+00:10:56,000 --> 00:10:57,037
+Three: a regex.
+
+224
+00:10:57,037 --> 00:11:00,632
+The first match in file order wins, not the longest.
+
+225
+00:11:00,933 --> 00:11:05,263
+Four: plain slash, the longest prefix, used only if no regex matched.
+
+226
+00:11:05,600 --> 00:11:10,339
+So the algorithm is: exact match first, then the longest prefix, which is
+
+227
+00:11:10,339 --> 00:11:14,040
+remembered, and if it is a caret tilde, the search stops.
+
+228
+00:11:14,040 --> 00:11:16,637
+Then regexes in order, first match wins.
+
+229
+00:11:16,637 --> 00:11:18,974
+Otherwise use the remembered prefix.
+
+230
+00:11:19,866 --> 00:11:23,941
+Why are five hundred prefixes free, while five hundred regexes are not?
+
+231
+00:11:24,266 --> 00:11:29,374
+Prefixes are stored in a ternary search tree, built at config parse time, and walked
+
+232
+00:11:29,374 --> 00:11:30,347
+per URI segment.
+
+233
+00:11:30,347 --> 00:11:33,995
+Regexes are a plain array, walked in order on every request.
+
+234
+00:11:33,995 --> 00:11:38,860
+The data structure is the documentation: a tree means the longest wins, an array
+
+235
+00:11:38,860 --> 00:11:40,137
+means the first wins.
+
+236
+00:11:40,466 --> 00:11:45,695
+And nginx has no dot htaccess, deliberately, so it never has to stat its way up the
+
+237
+00:11:45,695 --> 00:11:47,711
+directory tree on every request.
+
+238
+00:11:48,600 --> 00:11:52,326
+Load balancing across upstreams: smooth weighted round robin.
+
+239
+00:11:52,326 --> 00:11:53,731
+This is the core of it.
+
+240
+00:11:54,066 --> 00:11:57,755
+Each round, every peer's current weight grows by its effective weight.
+
+241
+00:11:57,755 --> 00:12:00,178
+Pick the peer with the highest current weight.
+
+242
+00:12:00,178 --> 00:12:02,286
+Then subtract the total from the winner.
+
+243
+00:12:03,333 --> 00:12:07,066
+Take weights three and one, so a is three and b is one.
+
+244
+00:12:07,066 --> 00:12:10,459
+Round one: add, and the weights are three and one.
+
+245
+00:12:10,459 --> 00:12:10,934
+Pick a.
+
+246
+00:12:10,934 --> 00:12:13,445
+Subtract four from a: minus one, one.
+
+247
+00:12:13,733 --> 00:12:15,627
+Round two: two and two.
+
+248
+00:12:15,627 --> 00:12:18,675
+A tie, and the first peer wins, so a.
+
+249
+00:12:18,675 --> 00:12:20,734
+Subtract: minus two, two.
+
+250
+00:12:21,066 --> 00:12:23,585
+Round three: one and three.
+
+251
+00:12:23,585 --> 00:12:24,237
+Pick b.
+
+252
+00:12:24,237 --> 00:12:26,569
+Subtract: one, minus one.
+
+253
+00:12:26,866 --> 00:12:28,969
+Round four: four and zero.
+
+254
+00:12:28,969 --> 00:12:29,535
+Pick a.
+
+255
+00:12:29,535 --> 00:12:31,638
+We are back to zero, zero.
+
+256
+00:12:31,933 --> 00:12:37,084
+The ratio is the same three to one, but compare naive weighted round robin, which
+
+257
+00:12:37,084 --> 00:12:39,182
+sends a, a, a, then b, in bursts.
+
+258
+00:12:39,182 --> 00:12:41,281
+The smooth version interleaves b.
+
+259
+00:12:41,281 --> 00:12:44,016
+The lecture writes the sequence as a b a a.
+
+260
+00:12:44,016 --> 00:12:47,132
+Depending on how ties break, you may see a a b a.
+
+261
+00:12:47,132 --> 00:12:50,566
+Either way, b is in the middle, not queued at the end.
+
+262
+00:12:50,566 --> 00:12:55,653
+Measured over twenty-four requests, six went to one upstream and eighteen to the
+
+263
+00:12:55,653 --> 00:12:56,035
+other.
+
+264
+00:12:56,035 --> 00:12:57,370
+Exactly three to one.
+
+265
+00:12:57,370 --> 00:13:02,394
+The other algorithm to try is least_conn: compare the p ninety-nine with a slow
+
+266
+00:13:02,394 --> 00:13:02,966
+upstream.
+
+267
+00:13:03,866 --> 00:13:05,782
+Fallbacks, with try_files.
+
+268
+00:13:06,066 --> 00:13:07,308
+Three small blocks.
+
+269
+00:13:07,600 --> 00:13:08,993
+Is this a real file?
+
+270
+00:13:09,333 --> 00:13:10,622
+A real directory?
+
+271
+00:13:10,933 --> 00:13:11,130
+No?
+
+272
+00:13:11,130 --> 00:13:12,704
+Hand the URI to the app.
+
+273
+00:13:12,704 --> 00:13:14,737
+The last entry is never tested.
+
+274
+00:13:14,737 --> 00:13:17,098
+It is the fallback, not a candidate.
+
+275
+00:13:17,400 --> 00:13:22,996
+A named location, with an at sign, is reachable only from try_files or error_page,
+
+276
+00:13:22,996 --> 00:13:24,157
+never from a URL.
+
+277
+00:13:24,466 --> 00:13:29,958
+WordPress, Rails, Django, and every single page app router are this one directive,
+
+278
+00:13:29,958 --> 00:13:32,570
+plus an app that reads the request URI.
+
+279
+00:13:33,466 --> 00:13:34,898
+Now a tour of the source.
+
+280
+00:13:34,898 --> 00:13:37,305
+Line numbers drift, function names do not.
+
+281
+00:13:37,305 --> 00:13:41,658
+Since nginx puts the return type on its own line, grep for the caret and the
+
+282
+00:13:41,658 --> 00:13:43,950
+function name finds only the definition.
+
+283
+00:13:45,000 --> 00:13:52,095
+src core is nginx's own standard library: strings, arrays, lists, hashes, red-black
+
+284
+00:13:52,095 --> 00:13:54,659
+trees, queues, pools, buffers.
+
+285
+00:13:55,000 --> 00:13:59,899
+src event holds the loop, and six ways to wait, chosen at configure time.
+
+286
+00:14:00,200 --> 00:14:06,422
+src http holds the HTTP state machine, the phase engine and the upstream framework.
+
+287
+00:14:06,733 --> 00:14:09,415
+src os unix is the syscall layer.
+
+288
+00:14:09,733 --> 00:14:15,615
+src stream is the same architecture for raw TCP and UDP, which makes nginx a layer
+
+289
+00:14:15,615 --> 00:14:16,977
+four load balancer.
+
+290
+00:14:17,266 --> 00:14:22,049
+And src mail does the same for IMAP, POP3 and SMTP proxying.
+
+291
+00:14:22,333 --> 00:14:23,746
+Two files to read first.
+
+292
+00:14:23,746 --> 00:14:28,513
+ngx_queue.h is an intrusive doubly linked list: the link pointers live inside the
+
+293
+00:14:28,513 --> 00:14:30,397
+node, so there is no allocation.
+
+294
+00:14:30,397 --> 00:14:33,281
+The cache LRU and the posted event queues use it.
+
+295
+00:14:33,600 --> 00:14:35,581
+ngx_palloc.h is the memory pool.
+
+296
+00:14:35,581 --> 00:14:40,782
+Allocate from a pool attached to the request, and destroy the whole pool at the end.
+
+297
+00:14:40,782 --> 00:14:45,117
+No reference counting, no class of leaks, and no free on the hot path.
+
+298
+00:14:46,066 --> 00:14:49,189
+The HTTP parser is a resumable state machine.
+
+299
+00:14:49,533 --> 00:14:52,075
+The request line alone has twenty-seven states.
+
+300
+00:14:55,600 --> 00:14:58,450
+No regex, no strtok, no allocation.
+
+301
+00:14:58,450 --> 00:15:00,975
+It consumes one byte at a time.
+
+302
+00:15:01,266 --> 00:15:03,350
+It can stop between any two bytes.
+
+303
+00:15:03,350 --> 00:15:08,498
+The state is saved, and parsing resumes where it stopped, because a request line may
+
+304
+00:15:08,498 --> 00:15:10,276
+arrive in three TCP segments.
+
+305
+00:15:10,600 --> 00:15:15,000
+This is what non-blocking costs you: every parser has to be resumable.
+
+306
+00:15:15,933 --> 00:15:18,324
+Every request walks through eleven phases.
+
+307
+00:15:18,666 --> 00:15:25,681
+Post read, server rewrite, find config, rewrite, post rewrite, pre-access, access,
+
+308
+00:15:25,681 --> 00:15:29,359
+post access, pre-content, content, and log.
+
+309
+00:15:29,666 --> 00:15:32,237
+The engine loops over the phase handlers.
+
+310
+00:15:32,237 --> 00:15:37,379
+And here is the subtle part: when a checker returns NGX_OK, it does not mean done.
+
+311
+00:15:37,379 --> 00:15:38,570
+It means suspended.
+
+312
+00:15:38,570 --> 00:15:40,890
+This is a hand-rolled coroutine in C.
+
+313
+00:15:40,890 --> 00:15:44,840
+The request resumes at the phase it left, when its event fires.
+
+314
+00:15:45,133 --> 00:15:50,871
+Which module runs when: limit_req in pre-access, auth_basic in access, try_files in
+
+315
+00:15:50,871 --> 00:15:55,710
+pre-content, and proxy_pass, fastcgi_pass and static files in content.
+
+316
+00:15:56,600 --> 00:15:59,966
+Back to FastCGI, this time at the byte level.
+
+317
+00:16:00,266 --> 00:16:05,300
+Every record has an eight byte header: version, type, request ID in two bytes,
+
+318
+00:16:05,300 --> 00:16:09,495
+content length in two bytes, padding length, and a reserved byte.
+
+319
+00:16:09,495 --> 00:16:11,818
+Then the content data, then padding.
+
+320
+00:16:12,133 --> 00:16:17,882
+A begin request header is zero one, zero one, zero zero, zero one, zero zero, zero
+
+321
+00:16:17,882 --> 00:16:19,845
+eight, zero zero, zero zero.
+
+322
+00:16:19,845 --> 00:16:24,051
+Those are the first eight bytes of every FastCGI connection.
+
+323
+00:16:24,051 --> 00:16:29,660
+And an empty params record is zero one, zero four, then the request, then length
+
+324
+00:16:29,660 --> 00:16:30,011
+zero.
+
+325
+00:16:30,011 --> 00:16:32,044
+That marks the end of params.
+
+326
+00:16:32,333 --> 00:16:34,187
+An empty record is a delimiter.
+
+327
+00:16:34,187 --> 00:16:36,758
+Forget it, and the responder waits forever.
+
+328
+00:16:36,758 --> 00:16:39,450
+That is length plus delimiter, at two levels.
+
+329
+00:16:40,400 --> 00:16:45,353
+The companion repository is a ladder of small programs, about twelve hundred lines,
+
+330
+00:16:45,353 --> 00:16:47,561
+against nginx's two hundred thousand.
+
+331
+00:16:47,561 --> 00:16:49,351
+The difference is error paths.
+
+332
+00:16:50,400 --> 00:16:53,372
+Fork per client matches Apache one point three.
+
+333
+00:16:53,666 --> 00:16:58,444
+A pthread per client matches the Apache two worker, and prints its eight megabyte
+
+334
+00:16:58,444 --> 00:16:58,798
+stack.
+
+335
+00:16:59,133 --> 00:17:03,993
+One thread with select dies at descriptor one thousand twenty-four, and ulimit does
+
+336
+00:17:03,993 --> 00:17:04,520
+not help.
+
+337
+00:17:04,866 --> 00:17:07,097
+One thread with epoll matches nginx.
+
+338
+00:17:07,097 --> 00:17:10,009
+Five thousand connections, and nothing happens.
+
+339
+00:17:10,333 --> 00:17:15,604
+read versus mmap versus sendfile: two thousand forty-eight system calls become one.
+
+340
+00:17:15,933 --> 00:17:19,903
+The FastCGI responder talks the wire protocol at both ends.
+
+341
+00:17:20,200 --> 00:17:26,330
+And one nginx conf, with five demos: routing, cache and weights, and fallbacks.
+
+342
+00:17:27,266 --> 00:17:28,857
+Four ideas to leave with.
+
+343
+00:17:29,200 --> 00:17:29,435
+One.
+
+344
+00:17:29,435 --> 00:17:30,792
+Ask the other question.
+
+345
+00:17:30,792 --> 00:17:32,620
+Apache made the worker cheaper.
+
+346
+00:17:32,620 --> 00:17:34,389
+nginx asked why there was one.
+
+347
+00:17:34,733 --> 00:17:34,960
+Two.
+
+348
+00:17:34,960 --> 00:17:37,350
+Check whether the constraint still exists.
+
+349
+00:17:37,350 --> 00:17:41,219
+Thread per connection died at eight megabytes plus context switches.
+
+350
+00:17:41,219 --> 00:17:43,893
+Goroutines and virtual threads brought it back.
+
+351
+00:17:44,200 --> 00:17:44,629
+Three.
+
+352
+00:17:44,629 --> 00:17:47,495
+The data structure is the documentation.
+
+353
+00:17:47,495 --> 00:17:49,860
+Prefixes in a tree: longest wins.
+
+354
+00:17:49,860 --> 00:17:52,152
+Regexes in an array: first wins.
+
+355
+00:17:52,466 --> 00:17:52,873
+Four.
+
+356
+00:17:52,873 --> 00:17:54,421
+Amortise the setup.
+
+357
+00:17:54,421 --> 00:18:00,694
+Prefork, pre-thread, servlets, connection pools, FastCGI, upstream keepalive.
+
+358
+00:18:00,694 --> 00:18:02,323
+Six names, one move.
+
+359
+00:18:02,666 --> 00:18:05,846
+The next question: where did all the state go?
+
+360
+00:18:05,846 --> 00:18:10,062
+Sessions, sticky routing, TLS termination, and shared caches.
+
+361
+00:18:11,000 --> 00:18:14,413
+Here is what the quiz is most likely to ask from session four.
+
+362
+00:18:38,466 --> 00:18:39,959
+That is session four.
+
+363
+00:18:39,959 --> 00:18:45,502
+Next up, session five: the evolution of HTTP, from nineteen ninety-six to now.
+
